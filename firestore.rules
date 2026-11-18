@@ -1,0 +1,338 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidPlaybackState(ps) {
+      return ps is map
+        && ps.keys().hasAll(['trackId', 'trackIndex', 'isPlaying', 'anchorPositionSec', 'playbackRate', 'sessionId', 'sequence'])
+        && ps.keys().hasOnly(['trackId', 'trackIndex', 'isPlaying', 'anchorPositionSec', 'playbackRate', 'eqPreset', 'updatedBy', 'sessionId', 'sequence', 'anchorTimestamp', 'playlistId', 'playlistType'])
+        && ps.trackId is string && ps.trackId.size() <= 128
+        && ps.trackIndex is number && ps.trackIndex >= 0 && ps.trackIndex <= 500
+        && ps.isPlaying is bool
+        && ps.anchorPositionSec is number && ps.anchorPositionSec >= 0 && ps.anchorPositionSec <= 86400
+        && ps.playbackRate is number && ps.playbackRate >= 0.5 && ps.playbackRate <= 2.0
+        && ps.sessionId is string && ps.sessionId.size() >= 1 && ps.sessionId.size() <= 128
+        && ps.sequence is number && ps.sequence >= 0
+        && (!('eqPreset' in ps) || (ps.eqPreset is string && ps.eqPreset.size() <= 30))
+        && (!('updatedBy' in ps) || (ps.updatedBy is string && ps.updatedBy.size() <= 128))
+        && (!('playlistId' in ps) || (ps.playlistId is string && ps.playlistId.size() <= 128))
+        && (!('playlistType' in ps) || (ps.playlistType in ['collaborative', 'public', 'studio']));
+    }
+
+    function isValidUser(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'handle', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'handle', 'eqPreset', 'playbackState', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == userId && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.handle is string && data.handle.size() >= 2 && data.handle.size() <= 40
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && (!('eqPreset' in data) || (data.eqPreset in ['flat', 'warm', 'studio', 'bass', 'air']))
+        && (!('playbackState' in data) || isValidPlaybackState(data.playbackState))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDirectoryEntry(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'handle', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'handle', 'photoURL', 'updatedAt'])
+        && data.uid is string && data.uid == userId && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.handle is string && data.handle.size() >= 2 && data.handle.size() <= 40
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCollabPlaylist(data, playlistId) {
+      return data.keys().hasAll(['id', 'title', 'ownerId', 'ownerName', 'memberIds', 'trackCount', 'playbackState', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'title', 'description', 'coverUrl', 'ownerId', 'ownerName', 'memberIds', 'trackCount', 'playbackState', 'createdAt', 'updatedAt'])
+        && data.id is string && data.id == playlistId && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && (!('description' in data) || (data.description is string && data.description.size() <= 300))
+        && (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() <= 500))
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80
+        && data.memberIds is list && data.memberIds.size() >= 1 && data.memberIds.size() <= 50
+        && data.memberIds[0] is string
+        && data.trackCount is number && data.trackCount >= 0 && data.trackCount <= 500
+        && isValidPlaybackState(data.playbackState)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicPlaylist(data, playlistId) {
+      return data.keys().hasAll(['id', 'title', 'genre', 'ownerId', 'ownerName', 'trackCount', 'totalDurationSec', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'title', 'description', 'genre', 'coverUrl', 'ownerId', 'ownerName', 'trackCount', 'totalDurationSec', 'createdAt', 'updatedAt'])
+        && data.id is string && data.id == playlistId && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && (!('description' in data) || (data.description is string && data.description.size() <= 300))
+        && data.genre is string && data.genre.size() >= 1 && data.genre.size() <= 50
+        && (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() <= 500))
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80
+        && data.trackCount is number && data.trackCount >= 0 && data.trackCount <= 500
+        && data.totalDurationSec is number && data.totalDurationSec >= 0 && data.totalDurationSec <= 864000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTrack(data, trackId) {
+      return data.keys().hasAll(['id', 'title', 'artist', 'genre', 'durationSec', 'bpm', 'synthPreset', 'rootNote', 'addedBy', 'order', 'createdAt'])
+        && data.keys().hasOnly(['id', 'title', 'artist', 'genre', 'durationSec', 'bpm', 'synthPreset', 'rootNote', 'coverUrl', 'addedBy', 'order', 'createdAt'])
+        && data.id is string && data.id == trackId && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && data.artist is string && data.artist.size() >= 1 && data.artist.size() <= 80
+        && data.genre is string && data.genre.size() >= 1 && data.genre.size() <= 50
+        && data.durationSec is number && data.durationSec >= 10 && data.durationSec <= 3600
+        && data.bpm is number && data.bpm >= 40 && data.bpm <= 220
+        && data.synthPreset is string && data.synthPreset.size() >= 1 && data.synthPreset.size() <= 60
+        && data.rootNote is string && data.rootNote.size() >= 1 && data.rootNote.size() <= 10
+        && (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() <= 500))
+        && data.addedBy is string && isValidId(data.addedBy)
+        && data.order is number && data.order >= 0 && data.order <= 10000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidInvite(data, inviteId) {
+      return data.keys().hasAll(['id', 'playlistId', 'playlistTitle', 'fromUid', 'fromName', 'toUid', 'toName', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'playlistId', 'playlistTitle', 'fromUid', 'fromName', 'toUid', 'toName', 'status', 'createdAt', 'updatedAt'])
+        && data.id is string && data.id == inviteId && isValidId(data.id)
+        && data.playlistId is string && isValidId(data.playlistId)
+        && data.playlistTitle is string && data.playlistTitle.size() >= 1 && data.playlistTitle.size() <= 100
+        && data.fromUid is string && isValidId(data.fromUid)
+        && data.fromName is string && data.fromName.size() >= 1 && data.fromName.size() <= 80
+        && data.toUid is string && isValidId(data.toUid)
+        && data.toName is string && data.toName.size() >= 1 && data.toName.size() <= 80
+        && data.status in ['pending', 'accepted', 'declined']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Health check document for connection validation
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Private User Profile (strict PII isolation)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow create: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidUser(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidUser(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'handle', 'eqPreset', 'playbackState', 'updatedAt']);
+    }
+
+    // Public User Directory (no PII like email)
+    match /userDirectory/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn() && resource.data.uid is string;
+      allow create: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidDirectoryEntry(incoming(), userId)
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidDirectoryEntry(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'handle', 'photoURL', 'updatedAt']);
+    }
+
+    // Collaborative Playlists
+    match /collaborativePlaylists/{playlistId} {
+      allow get: if isSignedIn() && isValidId(playlistId)
+        && request.auth.uid in existing().memberIds;
+      allow list: if isSignedIn()
+        && request.auth.uid in resource.data.memberIds;
+      allow create: if isVerified() && isValidId(playlistId)
+        && isValidCollabPlaylist(incoming(), playlistId)
+        && incoming().ownerId == request.auth.uid
+        && request.auth.uid in incoming().memberIds
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(playlistId)
+        && isValidCollabPlaylist(incoming(), playlistId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().ownerName == existing().ownerName
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            existing().ownerId == request.auth.uid
+            && request.auth.uid in incoming().memberIds
+            && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'coverUrl', 'memberIds', 'trackCount', 'playbackState', 'updatedAt'])
+          )
+          ||
+          (
+            request.auth.uid in existing().memberIds
+            && incoming().diff(existing()).affectedKeys().hasOnly(['playbackState', 'trackCount', 'updatedAt'])
+          )
+          ||
+          (
+            !(request.auth.uid in existing().memberIds)
+            && request.auth.uid in incoming().memberIds
+            && incoming().memberIds.hasAll(existing().memberIds)
+            && incoming().memberIds.size() == existing().memberIds.size() + 1
+            && incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt'])
+            && exists(/databases/$(database)/documents/collabInvites/$(playlistId + '_' + request.auth.uid))
+            && get(/databases/$(database)/documents/collabInvites/$(playlistId + '_' + request.auth.uid)).data.status == 'pending'
+            && getAfter(/databases/$(database)/documents/collabInvites/$(playlistId + '_' + request.auth.uid)).data.status == 'accepted'
+          )
+          ||
+          (
+            existing().ownerId != request.auth.uid
+            && request.auth.uid in existing().memberIds
+            && !(request.auth.uid in incoming().memberIds)
+            && existing().memberIds.hasAll(incoming().memberIds)
+            && incoming().memberIds.size() == existing().memberIds.size() - 1
+            && incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'updatedAt'])
+          )
+        );
+      allow delete: if isVerified() && isValidId(playlistId)
+        && existing().ownerId == request.auth.uid;
+
+      // Collaborative Playlist Tracks Subcollection (Master Gate)
+      match /tracks/{trackId} {
+        allow get: if isSignedIn() && isValidId(playlistId) && isValidId(trackId)
+          && request.auth.uid in get(/databases/$(database)/documents/collaborativePlaylists/$(playlistId)).data.memberIds;
+        allow list: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/collaborativePlaylists/$(playlistId)).data.memberIds;
+        allow create: if isVerified() && isValidId(playlistId) && isValidId(trackId)
+          && isValidTrack(incoming(), trackId)
+          && incoming().addedBy == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/collaborativePlaylists/$(playlistId))
+          && request.auth.uid in get(/databases/$(database)/documents/collaborativePlaylists/$(playlistId)).data.memberIds;
+        allow update: if isVerified() && isValidId(playlistId) && isValidId(trackId)
+          && isValidTrack(incoming(), trackId)
+          && incoming().id == existing().id
+          && incoming().addedBy == existing().addedBy
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['order'])
+          && request.auth.uid in get(/databases/$(database)/documents/collaborativePlaylists/$(playlistId)).data.memberIds;
+        allow delete: if isVerified() && isValidId(playlistId) && isValidId(trackId)
+          && request.auth.uid in get(/databases/$(database)/documents/collaborativePlaylists/$(playlistId)).data.memberIds;
+      }
+    }
+
+    // Collaboration Invites
+    match /collabInvites/{inviteId} {
+      allow get: if isSignedIn() && isValidId(inviteId)
+        && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+      allow list: if isSignedIn()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(inviteId)
+        && isValidInvite(incoming(), inviteId)
+        && inviteId == incoming().playlistId + '_' + incoming().toUid
+        && incoming().fromUid == request.auth.uid
+        && incoming().toUid != request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/collaborativePlaylists/$(incoming().playlistId))
+        && get(/databases/$(database)/documents/collaborativePlaylists/$(incoming().playlistId)).data.ownerId == request.auth.uid;
+      allow update: if isVerified() && isValidId(inviteId)
+        && isValidInvite(incoming(), inviteId)
+        && existing().status == 'pending'
+        && incoming().id == existing().id
+        && incoming().playlistId == existing().playlistId
+        && incoming().playlistTitle == existing().playlistTitle
+        && incoming().fromUid == existing().fromUid
+        && incoming().fromName == existing().fromName
+        && incoming().toUid == existing().toUid
+        && incoming().toName == existing().toName
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && existing().toUid == request.auth.uid
+        && (
+          (
+            incoming().status == 'accepted'
+            && request.auth.uid in getAfter(/databases/$(database)/documents/collaborativePlaylists/$(existing().playlistId)).data.memberIds
+          )
+          ||
+          incoming().status == 'declined'
+        );
+      allow delete: if isVerified() && isValidId(inviteId)
+        && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+    }
+
+    // Public Curated & Community Playlists
+    match /publicPlaylists/{playlistId} {
+      allow get: if isSignedIn() && isValidId(playlistId);
+      allow list: if isSignedIn() && resource.data.ownerId is string;
+      allow create: if isVerified() && isValidId(playlistId)
+        && isValidPublicPlaylist(incoming(), playlistId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(playlistId)
+        && isValidPublicPlaylist(incoming(), playlistId)
+        && existing().ownerId == request.auth.uid
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().ownerName == existing().ownerName
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'genre', 'coverUrl', 'trackCount', 'totalDurationSec', 'updatedAt']);
+      allow delete: if isVerified() && isValidId(playlistId)
+        && existing().ownerId == request.auth.uid;
+
+      // Public Playlist Tracks Subcollection
+      match /tracks/{trackId} {
+        allow get: if isSignedIn() && isValidId(playlistId) && isValidId(trackId);
+        allow list: if isSignedIn();
+        allow create: if isVerified() && isValidId(playlistId) && isValidId(trackId)
+          && isValidTrack(incoming(), trackId)
+          && incoming().addedBy == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/publicPlaylists/$(playlistId))
+          && get(/databases/$(database)/documents/publicPlaylists/$(playlistId)).data.ownerId == request.auth.uid;
+        allow update: if isVerified() && isValidId(playlistId) && isValidId(trackId)
+          && isValidTrack(incoming(), trackId)
+          && incoming().id == existing().id
+          && incoming().addedBy == existing().addedBy
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['order'])
+          && get(/databases/$(database)/documents/publicPlaylists/$(playlistId)).data.ownerId == request.auth.uid;
+        allow delete: if isVerified() && isValidId(playlistId) && isValidId(trackId)
+          && get(/databases/$(database)/documents/publicPlaylists/$(playlistId)).data.ownerId == request.auth.uid;
+      }
+    }
+  }
+}

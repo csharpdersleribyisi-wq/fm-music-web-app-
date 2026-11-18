@@ -1,0 +1,140 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user profile and personal cross-session audio playback state.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 160 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "handle": { "type": "string", "minLength": 2, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\.\\-]+$" },
+        "eqPreset": { "type": "string", "enum": ["flat", "warm", "studio", "bass", "air"] },
+        "playbackState": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "handle", "createdAt", "updatedAt"]
+    },
+    "DirectoryEntry": {
+      "title": "DirectoryEntry",
+      "description": "Publicly discoverable collaborator profile without sensitive PII.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "handle": { "type": "string", "minLength": 2, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\.\\-]+$" },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "handle", "updatedAt"]
+    },
+    "CollaborativePlaylist": {
+      "title": "CollaborativePlaylist",
+      "description": "Shared collaborative playlist with real-time synchronized Web Audio transport state.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 300 },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "memberIds": { "type": "array" },
+        "trackCount": { "type": "number" },
+        "playbackState": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "ownerId", "ownerName", "memberIds", "trackCount", "playbackState", "createdAt", "updatedAt"]
+    },
+    "PlaylistTrack": {
+      "title": "PlaylistTrack",
+      "description": "Synthesizer or audio track entry inside a playlist subcollection.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "artist": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "genre": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "durationSec": { "type": "number" },
+        "bpm": { "type": "number" },
+        "synthPreset": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "rootNote": { "type": "string", "minLength": 1, "maxLength": 10 },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "addedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "artist", "genre", "durationSec", "bpm", "synthPreset", "rootNote", "addedBy", "order", "createdAt"]
+    },
+    "CollabInvite": {
+      "title": "CollabInvite",
+      "description": "Invitation to join a collaborative playlist session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "playlistId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "playlistTitle": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "fromUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fromName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "toUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "toName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "playlistId", "playlistTitle", "fromUid", "fromName", "toUid", "toName", "status", "createdAt", "updatedAt"]
+    },
+    "PublicPlaylist": {
+      "title": "PublicPlaylist",
+      "description": "Publicly accessible curated or community playlist.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 300 },
+        "genre": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "trackCount": { "type": "number" },
+        "totalDurationSec": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "genre", "ownerId", "ownerName", "trackCount", "totalDurationSec", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile, PII, and personal playback handoff state."
+    },
+    "/userDirectory/{userId}": {
+      "schema": { "$ref": "#/entities/DirectoryEntry" },
+      "description": "Publicly searchable directory of Sonora users without PII."
+    },
+    "/collaborativePlaylists/{playlistId}": {
+      "schema": { "$ref": "#/entities/CollaborativePlaylist" },
+      "description": "Shared collaborative playlists and live Web Audio transport anchors."
+    },
+    "/collaborativePlaylists/{playlistId}/tracks/{trackId}": {
+      "schema": { "$ref": "#/entities/PlaylistTrack" },
+      "description": "Track queue items belonging to a collaborative playlist."
+    },
+    "/collabInvites/{inviteId}": {
+      "schema": { "$ref": "#/entities/CollabInvite" },
+      "description": "Invitations allowing collaborators to join a shared playlist."
+    },
+    "/publicPlaylists/{playlistId}": {
+      "schema": { "$ref": "#/entities/PublicPlaylist" },
+      "description": "Publicly discoverable curated and community playlists."
+    },
+    "/publicPlaylists/{playlistId}/tracks/{trackId}": {
+      "schema": { "$ref": "#/entities/PlaylistTrack" },
+      "description": "Track items belonging to a public playlist."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Sonora",
+  "description": "Collaborative Web Audio studio and real-time synchronized music workspace synced with Sonora Firebase collections.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
